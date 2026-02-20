@@ -1,8 +1,8 @@
-﻿# cc Installer
+# qs Installer
 
 $ErrorActionPreference = "Stop"
 
-# ANSI color codes (pre-built to avoid PowerShell array-index parsing)
+# ANSI color codes
 $R  = [char]27 + '[0m'
 $BC = [char]27 + '[96m'
 $C  = [char]27 + '[36m'
@@ -13,7 +13,7 @@ $BY = [char]27 + '[93m'
 $BR = [char]27 + '[91m'
 $BB = [char]27 + '[1;97m'
 
-$line = $DG + ('─' * 38) + $R
+$line = $DG + ([string]::new('─', 38)) + $R
 
 # Logo
 Write-Host ""
@@ -30,38 +30,37 @@ Write-Host "  $line"
 Write-Host ""
 Write-Host "  ${BC}◆${R} ${BW}Building${R}"
 
-go build -o cc.exe .
+go build -ldflags="-s -w" -o qs.exe .
 if ($LASTEXITCODE -ne 0) {
     Write-Host "   ${BR}✗ Build failed${R}"
     exit 1
 }
-Write-Host "   ${DG}▪${R} cc.exe                     ${BG}✓${R}"
-Copy-Item "cc.exe" -Destination "cx.exe" -Force
-Write-Host "   ${DG}▪${R} cx.exe (codex)             ${BG}✓${R}"
-Copy-Item "cc.exe" -Destination "all.exe" -Force
-Write-Host "   ${DG}▪${R} all.exe (multi)            ${BG}✓${R}"
+Write-Host "   ${DG}▪${R} qs.exe                     ${BG}✓${R}"
 
 # Install
-$installDir = "$env:USERPROFILE\.cc\bin"
+$installDir = "$env:USERPROFILE\.qs\bin"
 
 Write-Host ""
 Write-Host "  ${BC}◆${R} ${BW}Installing${R}"
 
 if (-not (Test-Path $installDir)) {
     New-Item -ItemType Directory -Path $installDir -Force | Out-Null
-    Write-Host "   ${DG}▪${R} Created ~/.cc/bin/          ${BG}✓${R}"
+    Write-Host "   ${DG}▪${R} Created ~/.qs/bin/          ${BG}✓${R}"
 }
 
-Copy-Item "cc.exe" -Destination "$installDir\cc.exe" -Force
-Write-Host "   ${DG}▪${R} Copied cc.exe               ${BG}✓${R}"
-Copy-Item "cx.exe" -Destination "$installDir\cx.exe" -Force
-Write-Host "   ${DG}▪${R} Copied cx.exe               ${BG}✓${R}"
-Copy-Item "all.exe" -Destination "$installDir\all.exe" -Force
-Write-Host "   ${DG}▪${R} Copied all.exe              ${BG}✓${R}"
+Copy-Item "qs.exe" -Destination "$installDir\qs.exe" -Force
+Write-Host "   ${DG}▪${R} Copied qs.exe               ${BG}✓${R}"
 
-Remove-Item "cc.exe" -ErrorAction SilentlyContinue
-Remove-Item "cx.exe" -ErrorAction SilentlyContinue
-Remove-Item "all.exe" -ErrorAction SilentlyContinue
+Remove-Item "qs.exe" -ErrorAction SilentlyContinue
+
+# Check for legacy config and print migration notice
+$legacyConfig = "$env:USERPROFILE\.cc\config.yaml"
+if (Test-Path $legacyConfig) {
+    Write-Host ""
+    Write-Host "  ${BC}◆${R} ${BW}Migration${R}"
+    Write-Host "   ${DG}▪${R} Found ~/.cc/config.yaml"
+    Write-Host "   ${DG}▪${R} Will auto-migrate to ~/.qs/ on first run"
+}
 
 # PATH
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
@@ -74,9 +73,17 @@ if ($userPath -notlike "*$installDir*") {
     Write-Host "   ${DG}▪${R} Already in PATH             ${BG}✓${R}"
 }
 
+# Clean up old binaries if they exist
+$oldBinDir = "$env:USERPROFILE\.cc\bin"
+if (Test-Path "$oldBinDir\cc.exe") {
+    Write-Host ""
+    Write-Host "  ${BC}◆${R} ${BW}Cleanup${R}"
+    Write-Host "   ${DG}▪${R} Old cc/cx/all binaries found in ~/.cc/bin/"
+    Write-Host "   ${DG}▪${R} You can safely remove them: ${DG}rm ~/.cc/bin/*.exe${R}"
+}
+
 # Done
 Write-Host ""
 Write-Host "  $line"
-Write-Host "  ${BG}◆${R} ${BW}Ready${R} ${DG}·${R} ${BC}cc${R} ${DG}(claude)${R} ${BC}cx${R} ${DG}(codex)${R} ${BC}all${R} ${DG}(multi)${R}"
+Write-Host "  ${BG}◆${R} ${BW}Ready${R} ${DG}·${R} ${BC}qs${R} ${DG}(launcher)${R} ${BC}qs setup${R} ${DG}(wizard)${R} ${BC}qs accounts${R} ${DG}(manage)${R}"
 Write-Host ""
-
