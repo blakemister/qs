@@ -1,35 +1,25 @@
 # qs
 
-**Launch AI coding agents across all your monitors with a single command.**
+**Quickly open any project with your AI coding tool of choice.**
 
 ```
 qs
 ```
 
-Pick a project, pick a tool, start coding. Terminals auto-arrange across your monitors.
+Pick a project, pick a tool, start coding.
 
 ---
 
 ## What It Does
 
-You have multiple monitors. You want to vibe code on several projects at once. `qs` handles the tedious part:
+`qs` is a terminal launcher that gets you into a project with an AI coding agent in two keystrokes. No more `cd`-ing around, no more remembering CLI flags.
 
-1. Spawns terminal windows across all your monitors
-2. Each window gets a project picker with fuzzy search
-3. Pick an AI coding tool (Claude Code, Codex, Gemini, and more)
-4. Windows auto-position in your configured layout
+1. Run `qs`
+2. Fuzzy-search your projects, hit Enter
+3. Pick your AI tool (or skip if you only have one enabled)
+4. You're coding
 
-```
-┌─────────────────────┬─────────────────────┬───────────────────┐
-│   Monitor 1 (2x2)   │   Monitor 2 (split) │  Laptop (full)    │
-│ ┌────────┬────────┐ │ ┌────────┬────────┐ │ ┌───────────────┐ │
-│ │ Claude │ Codex  │ │ │ Claude │ Gemini │ │ │  Claude Code   │ │
-│ ├────────┼────────┤ │ │  Code  │  CLI   │ │ │               │ │
-│ │ Claude │ Claude │ │ │        │        │ │ │               │ │
-│ │  Code  │  Code  │ │ │        │        │ │ │               │ │
-│ └────────┴────────┘ │ └────────┴────────┘ │ └───────────────┘ │
-└─────────────────────┴─────────────────────┴───────────────────┘
-```
+It also creates new project folders inline - select "+ create new folder" from the picker.
 
 ---
 
@@ -65,15 +55,11 @@ qs version        # Print version
 
 ### First Run
 
-On first launch, `qs` will prompt you to either run the full setup wizard or quickly set your projects directory. The setup wizard walks through:
-
-1. **Projects folder** - where your project directories live
-2. **Monitor layout** - how many windows per monitor and their arrangement
-3. **AI tool accounts** - which tools to enable
+On first launch, `qs` prompts you to either run the full setup wizard or quickly set your projects directory.
 
 ### Project Picker
 
-The main TUI shows your project folders with fuzzy search. Type to filter, arrow keys to navigate, Enter to select. You can also create new project folders inline.
+The main TUI lists your project folders with fuzzy search. Type to filter, arrow keys to navigate, Enter to select.
 
 ### Account Selection
 
@@ -97,6 +83,35 @@ Add custom tools through the setup wizard or `qs accounts`.
 
 ---
 
+## Multi-Monitor Mode
+
+If you have multiple monitors and want to vibe code on several projects at once, `qs` can spawn and auto-arrange terminal windows across all your displays.
+
+Configure window counts and layouts per monitor in the setup wizard:
+
+```
+┌─────────────────────┬─────────────────────┬───────────────────┐
+│   Monitor 1 (2x2)   │   Monitor 2 (split) │  Laptop (full)    │
+│ ┌────────┬────────┐ │ ┌────────┬────────┐ │ ┌───────────────┐ │
+│ │ Claude │ Codex  │ │ │ Claude │ Gemini │ │ │  Claude Code   │ │
+│ ├────────┼────────┤ │ │  Code  │  CLI   │ │ │               │ │
+│ │ Claude │ Claude │ │ │        │        │ │ │               │ │
+│ │  Code  │  Code  │ │ │        │        │ │ │               │ │
+│ └────────┴────────┘ │ └────────┴────────┘ │ └───────────────┘ │
+└─────────────────────┴─────────────────────┴───────────────────┘
+```
+
+### Layouts
+
+| Layout | Description |
+|--------|-------------|
+| `full` | Single fullscreen window |
+| `vertical` | Side-by-side columns |
+| `horizontal` | Stacked rows |
+| `grid` | 2x2, 3x3, etc. based on window count |
+
+---
+
 ## Configuration
 
 Config file: `~/.qs/config.yaml`
@@ -111,81 +126,23 @@ accounts:
     label: Claude Code
     command: claude
     args: ["--dangerously-skip-permissions"]
-    icon: "\U0001F7E0"
     enabled: true
   - id: codex
     label: OpenAI Codex
     command: codex
     args: ["--dangerously-bypass-approvals-and-sandbox"]
-    icon: "\U0001F7E2"
     enabled: true
 monitors:
-  - layout: grid
-    windows:
-      - tool: claude
-      - tool: claude
-      - tool: codex
-      - tool: claude
-  - layout: vertical
-    windows:
-      - tool: claude
-      - tool: claude
   - layout: full
     windows:
       - tool: claude
 ```
 
-### Layouts
+The setup wizard (`qs setup`) walks through all of this interactively:
 
-| Layout | Description |
-|--------|-------------|
-| `full` | Single fullscreen window |
-| `vertical` | Side-by-side columns |
-| `horizontal` | Stacked rows |
-| `grid` | 2x2, 3x3, etc. based on window count |
-
----
-
-## How It Works
-
-1. **Monitor detection** - Uses Win32 `EnumDisplayMonitors` API to find all connected displays
-2. **Window spawning** - Launches Windows Terminal (`wt.exe`) instances with unique titles
-3. **Window positioning** - Uses Win32 `SetWindowPos` to arrange windows according to layout config
-4. **Project picker** - Each terminal runs the Bubble Tea TUI for project/tool selection
-5. **Tool launch** - Hands off to the selected AI coding tool via `tea.ExecProcess`
-
----
-
-## Project Structure
-
-```
-qs/
-├── main.go                    # Entry point
-├── go.mod
-├── install.ps1                # Build + install script
-├── internal/
-│   ├── cmd/                   # CLI commands (Cobra)
-│   │   ├── root.go            # Main command + first-run flow
-│   │   ├── setup.go           # Setup wizard command
-│   │   ├── accounts.go        # Account management command
-│   │   ├── monitors.go        # Monitor listing command
-│   │   └── version.go         # Version command
-│   ├── config/                # Configuration (YAML, migration)
-│   │   ├── config.go          # Load/save/migrate config
-│   │   └── accounts.go        # Account definitions
-│   ├── launcher/              # Window management (Win32 API)
-│   │   └── launcher.go        # Terminal launch + positioning
-│   ├── monitor/               # Monitor detection (Win32 API)
-│   │   └── monitor.go         # EnumDisplayMonitors wrapper
-│   └── tui/                   # Terminal UI (Bubble Tea)
-│       ├── picker.go          # Project + account picker
-│       ├── setup.go           # Setup wizard
-│       ├── first_run.go       # First-run flow
-│       ├── accounts.go        # Account management UI
-│       ├── keys.go            # Key bindings
-│       └── styles.go          # Colors + styles
-└── README.md
-```
+1. **Projects folder** - where your project directories live
+2. **Monitor layout** - how many windows per monitor
+3. **AI tool accounts** - which tools to enable, add custom ones
 
 ---
 
