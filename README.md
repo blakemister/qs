@@ -1,200 +1,190 @@
-# Quickstart
+# qs
 
-**Launch multiple terminal windows across your monitors, each ready for vibe coding with Claude.**
+**Launch AI coding agents across all your monitors with a single command.**
 
 ```
-quickstart
+qs
 ```
 
-One command → Multiple terminals → Project picker in each → Claude Code ready to go.
+Pick a project, pick a tool, start coding. Terminals auto-arrange across your monitors.
 
 ---
 
-## The Problem
+## What It Does
 
-You have multiple monitors. You want to work on multiple projects simultaneously with Claude Code. Setting up your workspace manually is tedious:
+You have multiple monitors. You want to vibe code on several projects at once. `qs` handles the tedious part:
 
-1. Open terminal
-2. Navigate to project
-3. Run Claude
-4. Repeat for each window
-5. Manually position windows
-
-## The Solution
-
-Quickstart does all of this with a single command. Configure once, launch instantly.
+1. Spawns terminal windows across all your monitors
+2. Each window gets a project picker with fuzzy search
+3. Pick an AI coding tool (Claude Code, Codex, Gemini, and more)
+4. Windows auto-position in your configured layout
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              Your Monitors                                   │
-├─────────────────────┬─────────────────────┬─────────────────────────────────┤
-│      TV (4 windows) │  Monitor (2 windows)│         Laptop (1 window)       │
-│  ┌───────┬───────┐  │  ┌───────┬───────┐  │  ┌─────────────────────────────┐│
-│  │Claude │Claude │  │  │Claude │Claude │  │  │         Claude Code         ││
-│  │Code   │Code   │  │  │Code   │Code   │  │  │                             ││
-│  ├───────┼───────┤  │  │       │       │  │  │    Your main workspace      ││
-│  │Claude │Claude │  │  │       │       │  │  │                             ││
-│  │Code   │Code   │  │  │       │       │  │  │                             ││
-│  └───────┴───────┘  │  └───────┴───────┘  │  └─────────────────────────────┘│
-└─────────────────────┴─────────────────────┴─────────────────────────────────┘
+┌─────────────────────┬─────────────────────┬───────────────────┐
+│   Monitor 1 (2x2)   │   Monitor 2 (split) │  Laptop (full)    │
+│ ┌────────┬────────┐ │ ┌────────┬────────┐ │ ┌───────────────┐ │
+│ │ Claude │ Codex  │ │ │ Claude │ Gemini │ │ │  Claude Code   │ │
+│ ├────────┼────────┤ │ │  Code  │  CLI   │ │ │               │ │
+│ │ Claude │ Claude │ │ │        │        │ │ │               │ │
+│ │  Code  │  Code  │ │ │        │        │ │ │               │ │
+│ └────────┴────────┘ │ └────────┴────────┘ │ └───────────────┘ │
+└─────────────────────┴─────────────────────┴───────────────────┘
 ```
 
 ---
 
-## Tested Configuration
+## Install
 
-This code has been tested and verified working on the following setup:
-
-- **Laptop** (Primary, 1536x960): 1 maximized window
-- **External Monitor** (1920x1080): 2 windows side-by-side
-- **TV** (1920x1080): 4 windows in 2x2 grid
-
-Command: `quickstart -ProjectsDir "C:\dev" -Windows "1,2,4"`
-
----
-
-## Quick Start (PowerShell - No Install Required)
-
-### 1. Run the interactive setup:
+Requires **Go 1.21+** and **Windows Terminal**.
 
 ```powershell
-.\scripts\quickstart.ps1 -Init
+git clone https://github.com/blakemister/quickstart.git
+cd quickstart
+.\install.ps1
 ```
 
-This will ask you:
-- Where your projects folder is
-- How many terminal windows per monitor
+This builds `qs.exe`, installs it to `~/.qs/bin/`, and adds it to your PATH.
 
-### 2. Or run with parameters:
+Or build manually:
 
-```powershell
-# Specify your projects folder and window layout
-.\scripts\quickstart.ps1 -ProjectsDir "C:\dev" -Windows "1,2,4"
-
-# This means: 1 window on monitor 1, 2 on monitor 2, 4 on monitor 3
+```bash
+go build -o qs.exe .
 ```
-
-### 3. Optional: Install fzf for better project selection
-
-```powershell
-winget install junegunn.fzf
-```
-
-Without fzf, you'll get a simple numbered menu. With fzf, you get fuzzy search.
 
 ---
 
-## Building from Source (Go)
-
-### Prerequisites
-
-- Go 1.21+
-- Windows 10/11
-- Windows Terminal
-
-### Build
+## Usage
 
 ```bash
-go mod tidy
-go build -o quickstart.exe .
+qs                # Launch project picker
+qs setup          # Run the setup wizard
+qs accounts       # Manage AI tool accounts
+qs monitors       # List detected monitors
+qs version        # Print version
 ```
 
-### Install
+### First Run
 
-```bash
-# Copy to a directory in your PATH
-copy quickstart.exe C:\Users\you\bin\
-```
+On first launch, `qs` will prompt you to either run the full setup wizard or quickly set your projects directory. The setup wizard walks through:
 
-### Usage
+1. **Projects folder** - where your project directories live
+2. **Monitor layout** - how many windows per monitor and their arrangement
+3. **AI tool accounts** - which tools to enable
 
-```bash
-# First time setup
-quickstart init
+### Project Picker
 
-# Launch default profile
-quickstart
+The main TUI shows your project folders with fuzzy search. Type to filter, arrow keys to navigate, Enter to select. You can also create new project folders inline.
 
-# Launch specific profile
-quickstart dev
+### Account Selection
 
-# List monitors
-quickstart monitors
-```
+After picking a project, choose which AI coding tool to launch. If only one tool is enabled, it launches automatically.
+
+---
+
+## Supported Tools
+
+| Tool | Command | Default |
+|------|---------|---------|
+| Claude Code | `claude --dangerously-skip-permissions` | Enabled |
+| OpenAI Codex | `codex --dangerously-bypass-approvals-and-sandbox` | Enabled |
+| Gemini CLI | `gemini --yolo` | Enabled |
+| OpenCode (z.ai) | `opencode` | Enabled |
+| Cursor Agent | `agent` | Enabled |
+| Aider | `aider --yes-always` | Disabled |
+| Continue Dev | `continue` | Disabled |
+
+Add custom tools through the setup wizard or `qs accounts`.
 
 ---
 
 ## Configuration
 
-Config file location: `~/.quickstart/config.yaml`
+Config file: `~/.qs/config.yaml`
 
 ```yaml
-version: 1
-profiles:
-  default:
-    projectsDir: "C:/Users/you/.1dev"
-    postSelectCommand: "claude --dangerously-skip-permissions"
-    monitors:
-      - name: "1"
-        windows: 4
-        layout: "grid"
-      - name: "2"
-        windows: 2
-        layout: "vertical"
-      - name: "3"
-        windows: 1
-        layout: "full"
-
-  focus:
-    projectsDir: "C:/Users/you/.1dev"
-    postSelectCommand: "claude --dangerously-skip-permissions"
-    monitors:
-      - name: "1"
-        windows: 1
-        layout: "full"
+version: 4
+projectsRoot: "C:/Users/you/dev"
+defaultAccount: claude
+lastAccount: claude
+accounts:
+  - id: claude
+    label: Claude Code
+    command: claude
+    args: ["--dangerously-skip-permissions"]
+    icon: "\U0001F7E0"
+    enabled: true
+  - id: codex
+    label: OpenAI Codex
+    command: codex
+    args: ["--dangerously-bypass-approvals-and-sandbox"]
+    icon: "\U0001F7E2"
+    enabled: true
+monitors:
+  - layout: grid
+    windows:
+      - tool: claude
+      - tool: claude
+      - tool: codex
+      - tool: claude
+  - layout: vertical
+    windows:
+      - tool: claude
+      - tool: claude
+  - layout: full
+    windows:
+      - tool: claude
 ```
 
-### Layout Options
+### Layouts
 
 | Layout | Description |
 |--------|-------------|
-| `grid` | 2x2, 3x3, etc. based on window count |
+| `full` | Single fullscreen window |
 | `vertical` | Side-by-side columns |
 | `horizontal` | Stacked rows |
-| `full` | Single fullscreen window |
+| `grid` | 2x2, 3x3, etc. based on window count |
 
 ---
 
 ## How It Works
 
-1. **Monitor Detection**: Uses Windows API (`EnumDisplayMonitors`) to detect all connected monitors and their positions
-2. **Window Spawning**: Launches Windows Terminal (`wt.exe`) with specific titles for each window
-3. **Window Positioning**: Uses `SetWindowPos` to move each window to its calculated position
-4. **Project Selection**: Each terminal runs a picker (fzf or fallback menu) showing your project directories
-5. **Claude Launch**: After selection, automatically runs `claude --dangerously-skip-permissions` in that project
+1. **Monitor detection** - Uses Win32 `EnumDisplayMonitors` API to find all connected displays
+2. **Window spawning** - Launches Windows Terminal (`wt.exe`) instances with unique titles
+3. **Window positioning** - Uses Win32 `SetWindowPos` to arrange windows according to layout config
+4. **Project picker** - Each terminal runs the Bubble Tea TUI for project/tool selection
+5. **Tool launch** - Hands off to the selected AI coding tool via `tea.ExecProcess`
 
 ---
 
 ## Project Structure
 
 ```
-quickstart/
-├── main.go                 # Entry point
-├── go.mod                  # Go modules
+qs/
+├── main.go                    # Entry point
+├── go.mod
+├── install.ps1                # Build + install script
 ├── internal/
-│   ├── cmd/                # CLI commands (Cobra)
-│   │   └── root.go
-│   ├── config/             # Configuration handling
-│   │   └── config.go
-│   ├── monitor/            # Monitor detection (Win32 API)
-│   │   └── monitor.go
-│   └── window/             # Window management (Win32 API)
-│       └── window.go
-├── scripts/
-│   └── quickstart.ps1      # PowerShell proof-of-concept
-├── README.md
-├── RESEARCH.md             # Technical research & decisions
-└── FUTURE_PLANS.md         # Roadmap & ideas
+│   ├── cmd/                   # CLI commands (Cobra)
+│   │   ├── root.go            # Main command + first-run flow
+│   │   ├── setup.go           # Setup wizard command
+│   │   ├── accounts.go        # Account management command
+│   │   ├── monitors.go        # Monitor listing command
+│   │   └── version.go         # Version command
+│   ├── config/                # Configuration (YAML, migration)
+│   │   ├── config.go          # Load/save/migrate config
+│   │   └── accounts.go        # Account definitions
+│   ├── launcher/              # Window management (Win32 API)
+│   │   └── launcher.go        # Terminal launch + positioning
+│   ├── monitor/               # Monitor detection (Win32 API)
+│   │   └── monitor.go         # EnumDisplayMonitors wrapper
+│   └── tui/                   # Terminal UI (Bubble Tea)
+│       ├── picker.go          # Project + account picker
+│       ├── setup.go           # Setup wizard
+│       ├── first_run.go       # First-run flow
+│       ├── accounts.go        # Account management UI
+│       ├── keys.go            # Key bindings
+│       └── styles.go          # Colors + styles
+└── README.md
 ```
 
 ---
@@ -202,57 +192,21 @@ quickstart/
 ## Requirements
 
 - **Windows 10/11**
-- **Windows Terminal** (installed by default on Windows 11, or via Microsoft Store)
-- **fzf** (optional, for fuzzy project selection)
-- **Claude Code** (`claude` CLI)
+- **Windows Terminal** (default on Windows 11, or install from Microsoft Store)
+- **Go 1.21+** (to build from source)
+- At least one AI coding tool installed (`claude`, `codex`, `gemini`, etc.)
 
 ---
 
-## Troubleshooting
+## Built With
 
-### Windows don't position correctly
-
-The script needs to find windows by their title. If Windows Terminal is slow to open, try increasing the sleep delay in the script.
-
-### fzf not found
-
-Install it: `winget install junegunn.fzf`
-
-Or the script will fall back to a simple numbered menu.
-
-### Monitors not detected
-
-Run `quickstart monitors` (Go version) or check the output at the start of the PowerShell script. The script should show all detected monitors with their positions.
-
-### Wrong monitor order
-
-Monitors are sorted left-to-right by their X coordinate. If your physical arrangement doesn't match, adjust the monitor indices in the config.
-
----
-
-## Contributing
-
-This is an open-source project for the vibe coding community. Contributions welcome!
-
-1. Fork the repo
-2. Create a feature branch
-3. Make your changes
-4. Submit a PR
-
-See `FUTURE_PLANS.md` for ideas on what to build next.
+- [Bubble Tea](https://github.com/charmbracelet/bubbletea) - TUI framework
+- [Lip Gloss](https://github.com/charmbracelet/lipgloss) - Terminal styling
+- [Cobra](https://github.com/spf13/cobra) - CLI framework
+- Win32 API - Monitor detection + window positioning
 
 ---
 
 ## License
 
 MIT
-
----
-
-## Acknowledgments
-
-- [Windows Terminal](https://github.com/microsoft/terminal) - The terminal that makes this possible
-- [fzf](https://github.com/junegunn/fzf) - The best fuzzy finder
-- [Cobra](https://github.com/spf13/cobra) - CLI framework for Go
-- [Claude Code](https://claude.ai/claude-code) - The AI assistant we're launching
-- The vibe coding community - For the inspiration
