@@ -519,23 +519,27 @@ func (m PickerModel) viewAccount() string {
 	s.WriteString("\n")
 	s.WriteString(fmt.Sprintf("  %s\n", dim.Render("---------------------------------")))
 
+	green := lipgloss.NewStyle().Foreground(ColorGreen)
+
 	for i, a := range m.accounts {
-		keysBadge := ""
+		authBadge := ""
 		if ak := config.KeysForAccount(m.keys, a.ID); len(ak) > 0 {
-			keysBadge = dim.Render(fmt.Sprintf("[%d keys] ", len(ak)))
+			authBadge = green.Render("(API) ")
+		} else if a.HasAuth() {
+			authBadge = dim.Render("(sub) ")
 		}
 
 		if i == m.accountIdx {
 			s.WriteString(fmt.Sprintf("  %s %s %s%s  %s\n",
 				sel.Render(">"),
 				a.Icon,
-				keysBadge,
+				authBadge,
 				white.Render(a.Label),
 				dim.Render(a.FullCommand())))
 		} else {
 			s.WriteString(fmt.Sprintf("    %s %s%s  %s\n",
 				a.Icon,
-				keysBadge,
+				authBadge,
 				dim.Render(a.Label),
 				dim.Render(a.FullCommand())))
 		}

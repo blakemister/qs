@@ -1,6 +1,66 @@
 package config
 
-import "strings"
+import (
+	"regexp"
+	"strconv"
+	"strings"
+)
+
+// SuggestedEnvVars maps tool commands to their conventional API key env var names.
+var SuggestedEnvVars = map[string][]string{
+	"claude":   {"ANTHROPIC_API_KEY"},
+	"codex":    {"OPENAI_API_KEY"},
+	"gemini":   {"GEMINI_API_KEY"},
+	"agent":    {"CURSOR_API_KEY"},
+	"opencode": {"OPENAI_API_KEY", "ANTHROPIC_API_KEY"},
+}
+
+// UniqueAccountID generates a URL-safe ID from a label, appending -2, -3 etc. on collision.
+func UniqueAccountID(label string, existing []Account) string {
+	base := strings.ToLower(strings.TrimSpace(label))
+	// Replace non-alphanumeric with hyphens
+	re := regexp.MustCompile(`[^a-z0-9]+`)
+	base = re.ReplaceAllString(base, "-")
+	base = strings.Trim(base, "-")
+	if base == "" {
+		base = "account"
+	}
+
+	// Check for collision
+	candidate := base
+	suffix := 2
+	for {
+		taken := false
+		for _, a := range existing {
+			if a.ID == candidate {
+				taken = true
+				break
+			}
+		}
+		if !taken {
+			return candidate
+		}
+		candidate = base + "-" + strconv.Itoa(suffix)
+		suffix++
+	}
+}
+
+// CloneAccount deep-copies an account with a new label and unique ID.
+func CloneAccount(src Account, newLabel string, existing []Account) Account {
+	args := make([]string, len(src.Args))
+	copy(args, src.Args)
+
+	return Account{
+		ID:         UniqueAccountID(newLabel, existing),
+		Label:      newLabel,
+		Command:    src.Command,
+		Args:       args,
+		AuthCmd:    src.AuthCmd,
+		InstallCmd: src.InstallCmd,
+		Icon:       src.Icon,
+		Enabled:    true,
+	}
+}
 
 // Account represents a configured AI tool account
 type Account struct {

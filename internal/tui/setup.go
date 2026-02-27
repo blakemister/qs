@@ -47,8 +47,9 @@ type SetupModel struct {
 	accounts     []config.Account
 	accountIdx   int
 
-	// Step 3 sub-form: add custom account
+	// Step 3 sub-form: add/clone account
 	addingAccount  bool
+	cloningAccount bool
 	addInputs      []textinput.Model
 	addInputIdx    int
 	authMessage    string
@@ -175,8 +176,8 @@ func (m SetupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		// Handle add account sub-form
-		if m.addingAccount {
+		// Handle add/clone account sub-form
+		if m.addingAccount || m.cloningAccount {
 			return m.updateAddAccount(msg)
 		}
 
@@ -205,7 +206,7 @@ func (m SetupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	if m.addingAccount {
+	if m.addingAccount || m.cloningAccount {
 		var cmd tea.Cmd
 		m.addInputs[m.addInputIdx], cmd = m.addInputs[m.addInputIdx].Update(msg)
 		return m, cmd
@@ -323,6 +324,20 @@ func (m SetupModel) updateAccounts(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.addInputIdx = 0
 		m.addInputs[0].Focus()
 		return m, textinput.Blink
+	case msg.String() == "c":
+		a := m.accounts[m.accountIdx]
+		m.cloningAccount = true
+		m.addInputs = makeAccountFormInputs(
+			a.Label+" (2)",
+			a.Command,
+			strings.Join(a.Args, " "),
+			a.AuthCmd,
+			a.InstallCmd,
+			a.Icon,
+		)
+		m.addInputIdx = 0
+		m.addInputs[0].Focus()
+		return m, textinput.Blink
 	case msg.String() == "l":
 		a := m.accounts[m.accountIdx]
 		if !a.HasAuth() {
@@ -381,6 +396,7 @@ func (m SetupModel) updateAddAccount(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, DefaultKeyMap.Escape):
 		m.addingAccount = false
+		m.cloningAccount = false
 		return m, nil
 	case key.Matches(msg, DefaultKeyMap.Tab):
 		m.addInputs[m.addInputIdx].Blur()
@@ -407,7 +423,7 @@ func (m SetupModel) updateAddAccount(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		id := strings.ToLower(strings.ReplaceAll(name, " ", "-"))
+		id := config.UniqueAccountID(name, m.accounts)
 		if icon == "" {
 			icon = "⬜"
 		}
@@ -427,8 +443,13 @@ func (m SetupModel) updateAddAccount(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			Icon:       icon,
 			Enabled:    true,
 		})
+		wasClone := m.cloningAccount
 		m.addingAccount = false
+		m.cloningAccount = false
 		m.accountIdx = len(m.accounts) - 1
+		if wasClone {
+			m.authMessage = "Cloned! Press l to log in to this account"
+		}
 		return m, nil
 	default:
 		var cmd tea.Cmd
@@ -485,6 +506,11 @@ func (m SetupModel) updateKeysEdit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.keysKeyInput.Placeholder = "API_KEY_HERE"
 		m.keysKeyInput.CharLimit = 64
 		m.keysKeyInput.Width = 40
+		// Auto-suggest env var name based on account's command
+		a := m.accounts[m.keysAccountIdx]
+		if vars, ok := config.SuggestedEnvVars[a.Command]; ok && len(vars) > 0 {
+			m.keysKeyInput.SetValue(vars[0])
+		}
 		m.keysKeyInput.Focus()
 		m.keysValInput = textinput.New()
 		m.keysValInput.Placeholder = "sk-..."
@@ -592,7 +618,7 @@ func (m SetupModel) View() string {
 	case stepMonitors:
 		s.WriteString(m.viewMonitors())
 	case stepAccounts:
-		if m.addingAccount {
+		if m.addingAccount || m.cloningAccount {
 			s.WriteString(m.viewAddAccount())
 		} else {
 			s.WriteString(m.viewAccounts())
@@ -753,7 +779,7 @@ func (m SetupModel) viewAccounts() string {
 		s.WriteString("\n  " + WarningStyle.Render(m.authMessage) + "\n")
 	}
 
-	s.WriteString("\n  " + DimStyle.Render("Space toggle  a add  i install  l login  Enter to continue  Esc back") + "\n")
+	s.WriteString("\n  " + DimStyle.Render("Space toggle  a add  c clone  i install  l login  Enter to continue  Esc back") + "\n")
 	return s.String()
 }
 
@@ -761,7 +787,11 @@ func (m SetupModel) viewAddAccount() string {
 	var s strings.Builder
 	s.WriteString(RenderSep())
 	s.WriteString("\n")
-	s.WriteString("  " + TitleStyle.Render("Add Account") + "\n\n")
+	title := "Add Account"
+	if m.cloningAccount {
+		title = "Clone Account"
+	}
+	s.WriteString("  " + TitleStyle.Render(title) + "\n\n")
 
 	labels := []string{"Name", "Command", "Args", "Auth Cmd", "Install", "Icon"}
 	for i, input := range m.addInputs {

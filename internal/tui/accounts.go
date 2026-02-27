@@ -31,6 +31,7 @@ type AccountsModel struct {
 	editing    bool
 	deleting   bool
 	adding     bool
+	cloning    bool
 	inputs     []textinput.Model
 	inputIdx   int
 	message    string
@@ -106,7 +107,7 @@ func (m AccountsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		// Handle sub-forms
-		if m.editing || m.adding {
+		if m.editing || m.adding || m.cloning {
 			return m.updateForm(msg)
 		}
 		if m.deleting {
@@ -167,6 +168,22 @@ func (m AccountsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.message = ""
 			return m, textinput.Blink
 
+		case msg.String() == "c":
+			a := m.accounts[m.cursor]
+			m.cloning = true
+			m.inputs = makeAccountFormInputs(
+				a.Label+" (2)",
+				a.Command,
+				strings.Join(a.Args, " "),
+				a.AuthCmd,
+				a.InstallCmd,
+				a.Icon,
+			)
+			m.inputIdx = 0
+			m.inputs[0].Focus()
+			m.message = ""
+			return m, textinput.Blink
+
 		case msg.String() == "e":
 			a := m.accounts[m.cursor]
 			m.editing = true
@@ -222,6 +239,7 @@ func (m AccountsModel) updateForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, DefaultKeyMap.Escape):
 		m.editing = false
 		m.adding = false
+		m.cloning = false
 		return m, nil
 
 	case key.Matches(msg, DefaultKeyMap.Tab):
@@ -269,7 +287,7 @@ func (m AccountsModel) updateForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.accounts[m.cursor].Icon = icon
 			m.editing = false
 		} else {
-			id := strings.ToLower(strings.ReplaceAll(name, " ", "-"))
+			id := config.UniqueAccountID(name, m.accounts)
 			m.accounts = append(m.accounts, config.Account{
 				ID:         id,
 				Label:      name,
@@ -281,9 +299,16 @@ func (m AccountsModel) updateForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				Enabled:    true,
 			})
 			m.cursor = len(m.accounts) - 1
-			m.adding = false
+			if m.cloning {
+				m.cloning = false
+				m.message = "Cloned! Press l to log in to this account"
+			} else {
+				m.adding = false
+			}
 		}
-		m.message = ""
+		if m.message == "" {
+			m.message = ""
+		}
 		return m, nil
 
 	default:
@@ -296,10 +321,13 @@ func (m AccountsModel) updateForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m AccountsModel) updateDelete(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "y", "Y":
+		deletedID := m.accounts[m.cursor].ID
 		m.accounts = append(m.accounts[:m.cursor], m.accounts[m.cursor+1:]...)
 		if m.cursor >= len(m.accounts) {
 			m.cursor = len(m.accounts) - 1
 		}
+		// Clean up orphaned keys
+		delete(m.keys, deletedID)
 		m.deleting = false
 		m.message = ""
 	case "n", "N", "esc":
@@ -359,9 +387,11 @@ func (m AccountsModel) View() string {
 		return s.String()
 	}
 
-	if m.editing || m.adding {
+	if m.editing || m.adding || m.cloning {
 		title := "Edit Account"
-		if m.adding {
+		if m.cloning {
+			title = "Clone Account"
+		} else if m.adding {
 			title = "Add Account"
 		}
 		s.WriteString("  " + TitleStyle.Render(title) + "\n\n")
@@ -423,20 +453,22 @@ func (m AccountsModel) View() string {
 
 		cmdStr := DimStyle.Render(truncate(a.FullCommand(), 40))
 
-		keysBadge := ""
+		authBadge := ""
 		if ak := config.KeysForAccount(m.keys, a.ID); len(ak) > 0 {
-			keysBadge = DimStyle.Render(fmt.Sprintf(" [%d keys]", len(ak)))
+			authBadge = SuccessStyle.Render(" (API)")
+		} else if a.HasAuth() {
+			authBadge = DimStyle.Render(" (sub)")
 		}
 
-		s.WriteString(fmt.Sprintf("  %s %s %s  %s  %s%s\n",
-			prefix, enabledMark, label, pathMark, cmdStr, keysBadge))
+		s.WriteString(fmt.Sprintf("  %s %s %s%s  %s  %s\n",
+			prefix, enabledMark, label, authBadge, pathMark, cmdStr))
 	}
 
 	if m.message != "" {
 		s.WriteString("\n  " + WarningStyle.Render(m.message) + "\n")
 	}
 
-	s.WriteString("\n  " + DimStyle.Render("Space toggle  a add  e edit  i install  l login  k keys  d delete  Esc save & quit") + "\n")
+	s.WriteString("\n  " + DimStyle.Render("Space toggle  a add  c clone  e edit  i install  l login  k keys  d delete  Esc save & quit") + "\n")
 	return s.String()
 }
 
@@ -478,6 +510,11 @@ func (m AccountsModel) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case msg.String() == "a":
 		m.addingKey = true
 		m.keyInputs = makeKeyInputs()
+		// Auto-suggest env var name based on account's command
+		a := m.accounts[m.cursor]
+		if vars, ok := config.SuggestedEnvVars[a.Command]; ok && len(vars) > 0 {
+			m.keyInputs[0].SetValue(vars[0])
+		}
 		m.keyInputIdx = 0
 		m.keyInputs[0].Focus()
 		return m, textinput.Blink
