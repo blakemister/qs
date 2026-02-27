@@ -21,6 +21,7 @@ const (
 	stepProjectsRoot
 	stepMonitors
 	stepAccounts
+	stepKeys
 	stepConfirm
 	stepDone
 )
@@ -50,9 +51,27 @@ type SetupModel struct {
 	addingAccount  bool
 	addInputs      []textinput.Model
 	addInputIdx    int
+	authMessage    string
+
+	// Step 4: API Keys
+	keys           config.AccountKeys
+	keysAccountIdx int
+	keysMode       string // "select" or "edit"
+	keysList       []setupKeyEntry
+	keysEditIdx    int
+	keysAdding     bool
+	keysKeyInput   textinput.Model
+	keysValInput   textinput.Model
+	keysAddIdx     int // 0=name, 1=value
 
 	// Final config
 	savedPath    string
+}
+
+// setupKeyEntry holds a key name and value for display in setup
+type setupKeyEntry struct {
+	name  string
+	value string
 }
 
 // NewSetup creates a new setup wizard model
@@ -77,6 +96,7 @@ func NewSetup(existingCfg *config.Config) SetupModel {
 			Label:   a.Label,
 			Command: a.Command,
 			Args:    append([]string{}, a.Args...),
+			AuthCmd: a.AuthCmd,
 			Icon:    a.Icon,
 			Enabled: a.Enabled,
 		}
@@ -91,17 +111,22 @@ func NewSetup(existingCfg *config.Config) SetupModel {
 				Label:   a.Label,
 				Command: a.Command,
 				Args:    append([]string{}, a.Args...),
+				AuthCmd: a.AuthCmd,
 				Icon:    a.Icon,
 				Enabled: a.Enabled,
 			}
 		}
 	}
 
+	keys, _ := config.LoadKeys()
+
 	return SetupModel{
 		existingCfg: existingCfg,
 		step:        stepWelcome,
 		rootInput:   rootInput,
 		accounts:    accounts,
+		keys:        keys,
+		keysMode:    "select",
 	}
 }
 
@@ -114,6 +139,14 @@ func (m SetupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		return m, nil
+
+	case authDoneMsg:
+		if msg.err != nil {
+			m.authMessage = "Auth failed: " + msg.err.Error()
+		} else {
+			m.authMessage = "Auth completed successfully"
+		}
 		return m, nil
 
 	case monitorsDetectedMsg:
@@ -146,6 +179,8 @@ func (m SetupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateMonitors(msg)
 		case stepAccounts:
 			return m.updateAccounts(msg)
+		case stepKeys:
+			return m.updateStepKeys(msg)
 		case stepConfirm:
 			return m.updateConfirm(msg)
 		case stepDone:
@@ -163,6 +198,16 @@ func (m SetupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.addingAccount {
 		var cmd tea.Cmd
 		m.addInputs[m.addInputIdx], cmd = m.addInputs[m.addInputIdx].Update(msg)
+		return m, cmd
+	}
+
+	if m.step == stepKeys && m.keysAdding {
+		var cmd tea.Cmd
+		if m.keysAddIdx == 0 {
+			m.keysKeyInput, cmd = m.keysKeyInput.Update(msg)
+		} else {
+			m.keysValInput, cmd = m.keysValInput.Update(msg)
+		}
 		return m, cmd
 	}
 
@@ -245,7 +290,9 @@ func (m SetupModel) updateAccounts(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(enabled) == 0 {
 			return m, nil
 		}
-		m.step = stepConfirm
+		m.step = stepKeys
+		m.keysMode = "select"
+		m.keysAccountIdx = 0
 		return m, nil
 	case key.Matches(msg, DefaultKeyMap.Escape):
 		m.step = stepMonitors
@@ -266,6 +313,18 @@ func (m SetupModel) updateAccounts(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.addInputIdx = 0
 		m.addInputs[0].Focus()
 		return m, textinput.Blink
+	case msg.String() == "l":
+		a := m.accounts[m.accountIdx]
+		if !a.HasAuth() {
+			m.authMessage = a.Label + " uses env vars for auth (no login command)"
+			return m, nil
+		}
+		m.authMessage = ""
+		cmd, args := a.AuthCommand()
+		c := exec.Command(cmd, args...)
+		return m, tea.ExecProcess(c, func(err error) tea.Msg {
+			return authDoneMsg{err: err}
+		})
 	}
 	return m, nil
 }
@@ -280,11 +339,17 @@ func (m SetupModel) updateConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.err = err
 			return m, nil
 		}
+		// Save API keys
+		if err := config.SaveKeys(m.keys); err != nil {
+			m.err = err
+			return m, nil
+		}
 		m.savedPath = path
 		m.step = stepDone
 		return m, nil
 	case key.Matches(msg, DefaultKeyMap.Escape):
-		m.step = stepAccounts
+		m.step = stepKeys
+		m.keysMode = "select"
 		return m, nil
 	}
 	return m, nil
@@ -312,7 +377,8 @@ func (m SetupModel) updateAddAccount(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		name := m.addInputs[0].Value()
 		command := m.addInputs[1].Value()
 		args := m.addInputs[2].Value()
-		icon := m.addInputs[3].Value()
+		authCmd := m.addInputs[3].Value()
+		icon := m.addInputs[4].Value()
 
 		if name == "" || command == "" {
 			return m, nil
@@ -333,6 +399,7 @@ func (m SetupModel) updateAddAccount(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			Label:   name,
 			Command: command,
 			Args:    argList,
+			AuthCmd: authCmd,
 			Icon:    icon,
 			Enabled: true,
 		})
@@ -343,6 +410,148 @@ func (m SetupModel) updateAddAccount(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.addInputs[m.addInputIdx], cmd = m.addInputs[m.addInputIdx].Update(msg)
 		return m, cmd
+	}
+}
+
+func (m SetupModel) updateStepKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.keysAdding {
+		return m.updateKeysAdd(msg)
+	}
+	if m.keysMode == "edit" {
+		return m.updateKeysEdit(msg)
+	}
+	return m.updateKeysSelect(msg)
+}
+
+func (m SetupModel) updateKeysSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, DefaultKeyMap.Enter):
+		// Enter on an account opens its key editor
+		m.keysMode = "edit"
+		m.keysEditIdx = 0
+		m.refreshSetupKeysList()
+		return m, nil
+	case msg.String() == "s":
+		// Skip — go to confirm
+		m.step = stepConfirm
+		return m, nil
+	case key.Matches(msg, DefaultKeyMap.Escape):
+		m.step = stepAccounts
+		return m, nil
+	case key.Matches(msg, DefaultKeyMap.Up):
+		if m.keysAccountIdx > 0 {
+			m.keysAccountIdx--
+		}
+	case key.Matches(msg, DefaultKeyMap.Down):
+		if m.keysAccountIdx < len(m.accounts)-1 {
+			m.keysAccountIdx++
+		}
+	}
+	return m, nil
+}
+
+func (m SetupModel) updateKeysEdit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, DefaultKeyMap.Escape):
+		m.keysMode = "select"
+		return m, nil
+	case msg.String() == "a":
+		m.keysAdding = true
+		m.keysKeyInput = textinput.New()
+		m.keysKeyInput.Placeholder = "API_KEY_HERE"
+		m.keysKeyInput.CharLimit = 64
+		m.keysKeyInput.Width = 40
+		m.keysKeyInput.Focus()
+		m.keysValInput = textinput.New()
+		m.keysValInput.Placeholder = "sk-..."
+		m.keysValInput.CharLimit = 256
+		m.keysValInput.Width = 40
+		m.keysValInput.EchoMode = textinput.EchoPassword
+		m.keysAddIdx = 0
+		return m, textinput.Blink
+	case key.Matches(msg, DefaultKeyMap.Delete):
+		if len(m.keysList) > 0 {
+			entry := m.keysList[m.keysEditIdx]
+			accountID := m.accounts[m.keysAccountIdx].ID
+			config.DeleteAccountKey(m.keys, accountID, entry.name)
+			m.refreshSetupKeysList()
+		}
+	case key.Matches(msg, DefaultKeyMap.Up):
+		if m.keysEditIdx > 0 {
+			m.keysEditIdx--
+		}
+	case key.Matches(msg, DefaultKeyMap.Down):
+		if m.keysEditIdx < len(m.keysList)-1 {
+			m.keysEditIdx++
+		}
+	}
+	return m, nil
+}
+
+func (m SetupModel) updateKeysAdd(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, DefaultKeyMap.Escape):
+		m.keysAdding = false
+		return m, nil
+	case key.Matches(msg, DefaultKeyMap.Tab):
+		if m.keysAddIdx == 0 {
+			m.keysKeyInput.Blur()
+			m.keysAddIdx = 1
+			m.keysValInput.Focus()
+		} else {
+			m.keysValInput.Blur()
+			m.keysAddIdx = 0
+			m.keysKeyInput.Focus()
+		}
+		return m, textinput.Blink
+	case key.Matches(msg, DefaultKeyMap.Enter):
+		if m.keysAddIdx == 0 {
+			// Move to value field
+			m.keysKeyInput.Blur()
+			m.keysAddIdx = 1
+			m.keysValInput.Focus()
+			return m, textinput.Blink
+		}
+		// Submit
+		name := m.keysKeyInput.Value()
+		value := m.keysValInput.Value()
+		if err := config.ValidateEnvVarName(name); err != nil {
+			return m, nil
+		}
+		if value == "" {
+			return m, nil
+		}
+		accountID := m.accounts[m.keysAccountIdx].ID
+		config.SetAccountKey(m.keys, accountID, name, value)
+		m.keysAdding = false
+		m.refreshSetupKeysList()
+		return m, nil
+	default:
+		var cmd tea.Cmd
+		if m.keysAddIdx == 0 {
+			m.keysKeyInput, cmd = m.keysKeyInput.Update(msg)
+		} else {
+			m.keysValInput, cmd = m.keysValInput.Update(msg)
+		}
+		return m, cmd
+	}
+}
+
+func (m *SetupModel) refreshSetupKeysList() {
+	accountID := m.accounts[m.keysAccountIdx].ID
+	ak := config.KeysForAccount(m.keys, accountID)
+	m.keysList = nil
+	for name, val := range ak {
+		m.keysList = append(m.keysList, setupKeyEntry{name: name, value: val})
+	}
+	// Sort for stable display
+	for i := 1; i < len(m.keysList); i++ {
+		for j := i; j > 0 && m.keysList[j].name < m.keysList[j-1].name; j-- {
+			m.keysList[j], m.keysList[j-1] = m.keysList[j-1], m.keysList[j]
+		}
+	}
+	if m.keysEditIdx >= len(m.keysList) {
+		m.keysEditIdx = 0
 	}
 }
 
@@ -364,6 +573,8 @@ func (m SetupModel) View() string {
 		} else {
 			s.WriteString(m.viewAccounts())
 		}
+	case stepKeys:
+		s.WriteString(m.viewStepKeys())
 	case stepConfirm:
 		s.WriteString(m.viewConfirm())
 	case stepDone:
@@ -383,6 +594,7 @@ func (m SetupModel) viewWelcome() string {
 	s.WriteString("    " + TitleStyle.Render("1.") + " " + WhiteStyle.Render("Projects folder") + "\n")
 	s.WriteString("    " + TitleStyle.Render("2.") + " " + WhiteStyle.Render("Monitor layout") + "\n")
 	s.WriteString("    " + TitleStyle.Render("3.") + " " + WhiteStyle.Render("AI tool accounts") + "\n")
+	s.WriteString("    " + TitleStyle.Render("4.") + " " + WhiteStyle.Render("API keys") + "\n")
 	s.WriteString("\n")
 	s.WriteString("  " + DimStyle.Render("Press Enter to begin, q to quit") + "\n")
 	return s.String()
@@ -513,7 +725,11 @@ func (m SetupModel) viewAccounts() string {
 		DimStyle.Render("·"),
 		enabledCount))
 
-	s.WriteString("\n  " + DimStyle.Render("Space toggle  a add  Enter to continue  Esc back") + "\n")
+	if m.authMessage != "" {
+		s.WriteString("\n  " + WarningStyle.Render(m.authMessage) + "\n")
+	}
+
+	s.WriteString("\n  " + DimStyle.Render("Space toggle  a add  l login  Enter to continue  Esc back") + "\n")
 	return s.String()
 }
 
@@ -523,7 +739,7 @@ func (m SetupModel) viewAddAccount() string {
 	s.WriteString("\n")
 	s.WriteString("  " + TitleStyle.Render("Add Account") + "\n\n")
 
-	labels := []string{"Name", "Command", "Args", "Icon"}
+	labels := []string{"Name", "Command", "Args", "Auth Cmd", "Icon"}
 	for i, input := range m.addInputs {
 		active := i == m.addInputIdx
 		label := DimStyle.Render(labels[i] + ":")
@@ -537,11 +753,89 @@ func (m SetupModel) viewAddAccount() string {
 	return s.String()
 }
 
+func (m SetupModel) viewStepKeys() string {
+	var s strings.Builder
+	s.WriteString(RenderSep())
+	s.WriteString("\n")
+
+	if m.keysAdding {
+		a := m.accounts[m.keysAccountIdx]
+		s.WriteString("  " + TitleStyle.Render("Add API Key") + " " + DimStyle.Render("for "+a.ID) + "\n\n")
+
+		nameLabel := DimStyle.Render("  Env Var ")
+		valLabel := DimStyle.Render("  Value  ")
+		if m.keysAddIdx == 0 {
+			nameLabel = TitleStyle.Render("  Env Var ")
+		} else {
+			valLabel = TitleStyle.Render("  Value  ")
+		}
+		s.WriteString(fmt.Sprintf("%s  %s\n", nameLabel, m.keysKeyInput.View()))
+		s.WriteString(fmt.Sprintf("%s  %s\n", valLabel, m.keysValInput.View()))
+
+		s.WriteString("\n  " + DimStyle.Render("Tab next  Enter submit  Esc cancel") + "\n")
+		return s.String()
+	}
+
+	if m.keysMode == "edit" {
+		a := m.accounts[m.keysAccountIdx]
+		s.WriteString("  " + TitleStyle.Render("Step 4") + " " + SubtitleStyle.Render("API Keys for "+a.ID) + "\n\n")
+
+		if len(m.keysList) == 0 {
+			s.WriteString("  " + DimStyle.Render("No keys configured") + "\n")
+		} else {
+			for i, entry := range m.keysList {
+				prefix := "  "
+				if i == m.keysEditIdx {
+					prefix = TitleStyle.Render("▸ ")
+				}
+				nameStr := WhiteStyle.Render(entry.name)
+				if i != m.keysEditIdx {
+					nameStr = DimStyle.Render(entry.name)
+				}
+				s.WriteString(fmt.Sprintf("  %s %s  %s\n",
+					prefix,
+					nameStr,
+					DimStyle.Render(config.MaskValue(entry.value))))
+			}
+		}
+
+		s.WriteString("\n  " + DimStyle.Render("a add  d delete  Esc back") + "\n")
+		return s.String()
+	}
+
+	// Account selection mode
+	s.WriteString("  " + TitleStyle.Render("Step 4") + " " + SubtitleStyle.Render("API Keys") + "\n\n")
+	s.WriteString("  " + DimStyle.Render("Select an account to add API keys, or press s to skip.") + "\n\n")
+
+	for i, a := range m.accounts {
+		prefix := "  "
+		if i == m.keysAccountIdx {
+			prefix = TitleStyle.Render("▸ ")
+		}
+
+		keyCount := len(config.KeysForAccount(m.keys, a.ID))
+		badge := DimStyle.Render(fmt.Sprintf("[%d keys]", keyCount))
+
+		label := a.Icon + " " + a.Label
+		if i == m.keysAccountIdx {
+			label = SubtitleStyle.Render(a.Icon + " " + a.Label)
+		} else {
+			label = DimStyle.Render(a.Icon + " " + a.Label)
+		}
+
+		s.WriteString(fmt.Sprintf("  %s %s %s  %s\n",
+			prefix, badge, label, DimStyle.Render(a.ID)))
+	}
+
+	s.WriteString("\n  " + DimStyle.Render("↑↓ select  Enter edit keys  s skip  Esc back") + "\n")
+	return s.String()
+}
+
 func (m SetupModel) viewConfirm() string {
 	var s strings.Builder
 	s.WriteString(RenderSep())
 	s.WriteString("\n")
-	s.WriteString("  " + TitleStyle.Render("Step 4") + " " + SubtitleStyle.Render("Confirm") + "\n\n")
+	s.WriteString("  " + TitleStyle.Render("Step 5") + " " + SubtitleStyle.Render("Confirm") + "\n\n")
 
 	// Projects root
 	s.WriteString(fmt.Sprintf("  %s  %s\n",
@@ -560,10 +854,16 @@ func (m SetupModel) viewConfirm() string {
 	s.WriteString("\n  " + DimStyle.Render("Accounts:") + "\n")
 	for _, a := range m.accounts {
 		if a.Enabled {
-			s.WriteString(fmt.Sprintf("    %s %s  %s\n",
+			keyCount := len(config.KeysForAccount(m.keys, a.ID))
+			keysBadge := ""
+			if keyCount > 0 {
+				keysBadge = DimStyle.Render(fmt.Sprintf("  [%d keys]", keyCount))
+			}
+			s.WriteString(fmt.Sprintf("    %s %s  %s%s\n",
 				a.Icon,
 				WhiteStyle.Render(a.Label),
-				DimStyle.Render(a.FullCommand())))
+				DimStyle.Render(a.FullCommand()),
+				keysBadge))
 		}
 	}
 
@@ -651,7 +951,7 @@ func renderLayoutPreview(count int) string {
 }
 
 func makeAddAccountInputs() []textinput.Model {
-	inputs := make([]textinput.Model, 4)
+	inputs := make([]textinput.Model, 5)
 
 	inputs[0] = textinput.New()
 	inputs[0].Placeholder = "My Tool"
@@ -669,9 +969,14 @@ func makeAddAccountInputs() []textinput.Model {
 	inputs[2].Width = 30
 
 	inputs[3] = textinput.New()
-	inputs[3].Placeholder = "⬜"
-	inputs[3].CharLimit = 4
-	inputs[3].Width = 10
+	inputs[3].Placeholder = "command login"
+	inputs[3].CharLimit = 128
+	inputs[3].Width = 30
+
+	inputs[4] = textinput.New()
+	inputs[4].Placeholder = "⬜"
+	inputs[4].CharLimit = 4
+	inputs[4].Width = 10
 
 	return inputs
 }

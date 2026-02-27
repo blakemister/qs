@@ -226,6 +226,7 @@ func copyDefaultAccounts() []Account {
 			Label:   a.Label,
 			Command: a.Command,
 			Args:    append([]string{}, a.Args...),
+			AuthCmd: a.AuthCmd,
 			Icon:    a.Icon,
 			Enabled: a.Enabled,
 		}
@@ -284,6 +285,25 @@ func EnsureDefaults(cfg *Config) {
 					{Tool: cfg.DefaultAccount},
 				},
 			},
+		}
+	}
+
+	ensureAuthDefaults(cfg)
+}
+
+// ensureAuthDefaults backfills auth commands for known default account IDs.
+func ensureAuthDefaults(cfg *Config) {
+	defaults := make(map[string]string)
+	for _, da := range DefaultAccounts {
+		if da.AuthCmd != "" {
+			defaults[da.ID] = da.AuthCmd
+		}
+	}
+	for i := range cfg.Accounts {
+		if cfg.Accounts[i].AuthCmd == "" {
+			if authCmd, ok := defaults[cfg.Accounts[i].ID]; ok {
+				cfg.Accounts[i].AuthCmd = authCmd
+			}
 		}
 	}
 }

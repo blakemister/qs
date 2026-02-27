@@ -8,8 +8,23 @@ type Account struct {
 	Label   string   `yaml:"label"`
 	Command string   `yaml:"command"`
 	Args    []string `yaml:"args"`
+	AuthCmd string   `yaml:"authCmd,omitempty"`
 	Icon    string   `yaml:"icon"`
 	Enabled bool     `yaml:"enabled"`
+}
+
+// AuthCommand splits AuthCmd into command and args.
+func (a *Account) AuthCommand() (string, []string) {
+	parts := strings.Fields(a.AuthCmd)
+	if len(parts) == 0 {
+		return "", nil
+	}
+	return parts[0], parts[1:]
+}
+
+// HasAuth returns true if this account has an auth command configured.
+func (a *Account) HasAuth() bool {
+	return strings.TrimSpace(a.AuthCmd) != ""
 }
 
 // DefaultAccounts returns the built-in account definitions
@@ -19,6 +34,7 @@ var DefaultAccounts = []Account{
 		Label:   "Claude Code",
 		Command: "claude",
 		Args:    []string{"--dangerously-skip-permissions"},
+		AuthCmd: "claude /login",
 		Icon:    "\U0001F7E0",
 		Enabled: true,
 	},
@@ -27,6 +43,7 @@ var DefaultAccounts = []Account{
 		Label:   "OpenAI Codex",
 		Command: "codex",
 		Args:    []string{"--dangerously-bypass-approvals-and-sandbox"},
+		AuthCmd: "codex login",
 		Icon:    "\U0001F7E2",
 		Enabled: true,
 	},
@@ -35,6 +52,7 @@ var DefaultAccounts = []Account{
 		Label:   "Gemini CLI",
 		Command: "gemini",
 		Args:    []string{"--yolo"},
+		AuthCmd: "gemini",
 		Icon:    "\U0001F535",
 		Enabled: true,
 	},
@@ -42,7 +60,8 @@ var DefaultAccounts = []Account{
 		ID:      "opencode",
 		Label:   "OpenCode (z.ai)",
 		Command: "opencode",
-		Args:    []string{},
+		Args:    []string{"--yolo"},
+		AuthCmd: "opencode auth login",
 		Icon:    "\u26AB",
 		Enabled: true,
 	},
@@ -51,6 +70,7 @@ var DefaultAccounts = []Account{
 		Label:   "Cursor Agent",
 		Command: "agent",
 		Args:    []string{},
+		AuthCmd: "agent login",
 		Icon:    "\U0001F7E1",
 		Enabled: true,
 	},

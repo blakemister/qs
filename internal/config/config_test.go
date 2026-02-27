@@ -397,6 +397,146 @@ func TestDefaultConfigPaths(t *testing.T) {
 	}
 }
 
+func TestAccountAuthCommand(t *testing.T) {
+	tests := []struct {
+		authCmd     string
+		wantCmd     string
+		wantArgs    []string
+		wantHasAuth bool
+	}{
+		{"claude /login", "claude", []string{"/login"}, true},
+		{"codex login", "codex", []string{"login"}, true},
+		{"opencode auth login", "opencode", []string{"auth", "login"}, true},
+		{"gemini", "gemini", nil, true},
+		{"", "", nil, false},
+		{"  ", "", nil, false},
+	}
+
+	for _, tt := range tests {
+		a := Account{AuthCmd: tt.authCmd}
+
+		gotCmd, gotArgs := a.AuthCommand()
+		if gotCmd != tt.wantCmd {
+			t.Errorf("AuthCommand(%q) cmd = %q, want %q", tt.authCmd, gotCmd, tt.wantCmd)
+		}
+		if len(gotArgs) == 0 && len(tt.wantArgs) == 0 {
+			// both empty, ok
+		} else if len(gotArgs) != len(tt.wantArgs) {
+			t.Errorf("AuthCommand(%q) args len = %d, want %d", tt.authCmd, len(gotArgs), len(tt.wantArgs))
+		} else {
+			for i := range gotArgs {
+				if gotArgs[i] != tt.wantArgs[i] {
+					t.Errorf("AuthCommand(%q) args[%d] = %q, want %q", tt.authCmd, i, gotArgs[i], tt.wantArgs[i])
+				}
+			}
+		}
+
+		if got := a.HasAuth(); got != tt.wantHasAuth {
+			t.Errorf("HasAuth(%q) = %v, want %v", tt.authCmd, got, tt.wantHasAuth)
+		}
+	}
+}
+
+func TestAuthCmdRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+
+	cfg := &Config{
+		Version:        4,
+		ProjectsRoot:   "/test",
+		DefaultAccount: "claude",
+		Accounts: []Account{
+			{ID: "claude", Label: "Claude", Command: "claude", AuthCmd: "claude /login", Enabled: true},
+			{ID: "aider", Label: "Aider", Command: "aider", Enabled: true},
+		},
+		Monitors: []MonitorConfig{
+			{Layout: "full", Windows: []WindowConfig{{Tool: "claude"}}},
+		},
+	}
+
+	if err := Save(cfg, path); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	// Verify omitempty: aider has no authCmd, so it shouldn't appear in YAML
+	data, _ := os.ReadFile(path)
+	yaml := string(data)
+	// Claude's authCmd should be present
+	if !contains(yaml, "authCmd") {
+		t.Error("expected authCmd to appear in saved YAML for claude")
+	}
+
+	loaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	// Verify Claude's auth command survived round-trip
+	claude := AccountByID(loaded.Accounts, "claude")
+	if claude == nil {
+		t.Fatal("expected to find claude account")
+	}
+	if claude.AuthCmd != "claude /login" {
+		t.Errorf("expected AuthCmd 'claude /login', got %q", claude.AuthCmd)
+	}
+	if !claude.HasAuth() {
+		t.Error("expected claude HasAuth() to be true")
+	}
+
+	// Verify Aider has no auth command
+	aider := AccountByID(loaded.Accounts, "aider")
+	if aider == nil {
+		t.Fatal("expected to find aider account")
+	}
+	if aider.AuthCmd != "" {
+		t.Errorf("expected empty AuthCmd for aider, got %q", aider.AuthCmd)
+	}
+	if aider.HasAuth() {
+		t.Error("expected aider HasAuth() to be false")
+	}
+}
+
+func TestEnsureAuthDefaults(t *testing.T) {
+	cfg := &Config{
+		Accounts: []Account{
+			{ID: "claude", Label: "Claude", Command: "claude", Enabled: true},
+			{ID: "custom", Label: "Custom", Command: "custom", Enabled: true},
+		},
+	}
+	EnsureDefaults(cfg)
+
+	// claude should get backfilled auth command
+	claude := AccountByID(cfg.Accounts, "claude")
+	if claude == nil {
+		t.Fatal("expected claude account")
+	}
+	if claude.AuthCmd == "" {
+		t.Error("expected claude AuthCmd to be backfilled")
+	}
+
+	// custom should remain empty (not a known default)
+	custom := AccountByID(cfg.Accounts, "custom")
+	if custom == nil {
+		t.Fatal("expected custom account")
+	}
+	if custom.AuthCmd != "" {
+		t.Errorf("expected custom AuthCmd to remain empty, got %q", custom.AuthCmd)
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && containsSubstr(s, substr)
+}
+
+func containsSubstr(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
 func containsPath(path, segment string) bool {
 	for _, p := range filepath.SplitList(path) {
 		if p == segment {
