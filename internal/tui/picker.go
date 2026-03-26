@@ -603,7 +603,7 @@ func (m PickerModel) viewAccount() string {
 		authBadge := ""
 		if a.AuthUser != "" {
 			authBadge = green.Render("(" + a.AuthUser + ") ")
-		} else if ak := config.KeysForAccount(m.keys, a.ID); len(ak) > 0 {
+		} else if ak := config.UserAPIKeys(m.keys, a.ID); len(ak) > 0 {
 			authBadge = green.Render("(API) ")
 		} else if a.HasAuth() {
 			authBadge = dim.Render("(sub) ")

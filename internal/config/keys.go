@@ -66,8 +66,12 @@ func SaveKeys(keys AccountKeys) error {
 func DefaultAccountKeys() AccountKeys {
 	homeDir, _ := os.UserHomeDir()
 	return AccountKeys{
+		"claude": {
+			"CLAUDE_CODE_EFFORT_LEVEL": "max",
+		},
 		"ama-claude": {
-			"CLAUDE_CONFIG_DIR": filepath.Join(homeDir, ".claude-ama"),
+			"CLAUDE_CONFIG_DIR":        filepath.Join(homeDir, ".claude-ama"),
+			"CLAUDE_CODE_EFFORT_LEVEL": "max",
 		},
 	}
 }

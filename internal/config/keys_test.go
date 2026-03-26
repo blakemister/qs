@@ -188,3 +188,80 @@ func TestKeysForAccountNilMap(t *testing.T) {
 		t.Error("expected nil for nil keys map")
 	}
 }
+
+func TestDefaultAccountKeysHasEffortLevel(t *testing.T) {
+	defaults := DefaultAccountKeys()
+
+	// Verify claude has CLAUDE_CODE_EFFORT_LEVEL
+	claudeKeys, ok := defaults["claude"]
+	if !ok {
+		t.Fatal("expected 'claude' entry in DefaultAccountKeys")
+	}
+	if claudeKeys["CLAUDE_CODE_EFFORT_LEVEL"] != "max" {
+		t.Errorf("expected claude CLAUDE_CODE_EFFORT_LEVEL 'max', got %q", claudeKeys["CLAUDE_CODE_EFFORT_LEVEL"])
+	}
+
+	// Verify ama-claude has CLAUDE_CODE_EFFORT_LEVEL
+	amaKeys, ok := defaults["ama-claude"]
+	if !ok {
+		t.Fatal("expected 'ama-claude' entry in DefaultAccountKeys")
+	}
+	if amaKeys["CLAUDE_CODE_EFFORT_LEVEL"] != "max" {
+		t.Errorf("expected ama-claude CLAUDE_CODE_EFFORT_LEVEL 'max', got %q", amaKeys["CLAUDE_CODE_EFFORT_LEVEL"])
+	}
+
+	// Verify ama-claude still has CLAUDE_CONFIG_DIR
+	if amaKeys["CLAUDE_CONFIG_DIR"] == "" {
+		t.Error("expected ama-claude to still have CLAUDE_CONFIG_DIR")
+	}
+}
+
+func TestEnsureDefaultKeysAddsEffortLevel(t *testing.T) {
+	keys := make(AccountKeys)
+	EnsureDefaultKeys(keys)
+
+	if keys["claude"]["CLAUDE_CODE_EFFORT_LEVEL"] != "max" {
+		t.Errorf("expected claude CLAUDE_CODE_EFFORT_LEVEL 'max', got %q", keys["claude"]["CLAUDE_CODE_EFFORT_LEVEL"])
+	}
+	if keys["ama-claude"]["CLAUDE_CODE_EFFORT_LEVEL"] != "max" {
+		t.Errorf("expected ama-claude CLAUDE_CODE_EFFORT_LEVEL 'max', got %q", keys["ama-claude"]["CLAUDE_CODE_EFFORT_LEVEL"])
+	}
+}
+
+func TestEnsureDefaultKeysPreservesUserEffortLevel(t *testing.T) {
+	keys := AccountKeys{
+		"claude": {
+			"CLAUDE_CODE_EFFORT_LEVEL": "normal",
+		},
+	}
+	EnsureDefaultKeys(keys)
+
+	if keys["claude"]["CLAUDE_CODE_EFFORT_LEVEL"] != "normal" {
+		t.Errorf("expected claude CLAUDE_CODE_EFFORT_LEVEL 'normal' (user-set), got %q", keys["claude"]["CLAUDE_CODE_EFFORT_LEVEL"])
+	}
+}
+
+func TestUserAPIKeysExcludesDefaultEffortLevel(t *testing.T) {
+	keys := make(AccountKeys)
+	EnsureDefaultKeys(keys)
+
+	// With only defaults, UserAPIKeys should return nil
+	userKeys := UserAPIKeys(keys, "claude")
+	if userKeys != nil {
+		t.Errorf("expected nil UserAPIKeys for claude with only defaults, got %v", userKeys)
+	}
+
+	// Add a user API key
+	SetAccountKey(keys, "claude", "ANTHROPIC_API_KEY", "sk-test-999")
+
+	userKeys = UserAPIKeys(keys, "claude")
+	if userKeys == nil {
+		t.Fatal("expected non-nil UserAPIKeys after adding ANTHROPIC_API_KEY")
+	}
+	if userKeys["ANTHROPIC_API_KEY"] != "sk-test-999" {
+		t.Errorf("expected ANTHROPIC_API_KEY 'sk-test-999', got %q", userKeys["ANTHROPIC_API_KEY"])
+	}
+	if _, hasEffort := userKeys["CLAUDE_CODE_EFFORT_LEVEL"]; hasEffort {
+		t.Error("UserAPIKeys should not include default CLAUDE_CODE_EFFORT_LEVEL")
+	}
+}

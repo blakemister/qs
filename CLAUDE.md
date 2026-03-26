@@ -122,6 +122,8 @@ These are the built-in tool definitions (defined in `internal/config/accounts.go
 | `opencode` | `opencode` | (none) | `npm i -g opencode` | Yes |
 | `cursor` | `agent` | (none) | (none) | Yes |
 
+Claude-based accounts (`claude`, `ama-claude`) automatically set the environment variable `CLAUDE_CODE_EFFORT_LEVEL=max` when launching. This configures Claude Code to use its deepest reasoning mode (Opus 4.6). Users can override this per-account via `qs accounts` (keys editor) or by editing `~/.qs/keys.yaml`.
+
 Users can add custom accounts through `qs setup` or `qs accounts`.
 
 ## User Setup Checklist (for agents helping users)

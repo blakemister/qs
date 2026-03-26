@@ -985,7 +985,7 @@ func (m SetupModel) viewAccounts() string {
 		authBadge := ""
 		if a.AuthUser != "" {
 			authBadge = SuccessStyle.Render(" (" + a.AuthUser + ")")
-		} else if ak := config.KeysForAccount(m.keys, a.ID); len(ak) > 0 {
+		} else if ak := config.UserAPIKeys(m.keys, a.ID); len(ak) > 0 {
 			authBadge = SuccessStyle.Render(" (API)")
 		} else if a.HasAuth() {
 			authBadge = DimStyle.Render(" (sub)")
