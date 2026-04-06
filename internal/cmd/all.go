@@ -2,8 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/bcmister/qs/internal/config"
@@ -37,7 +35,7 @@ func runAll(cmd *cobra.Command, args []string) error {
 	}
 	cfg.ProjectsRoot = projectsRoot
 
-	// Run the AllModel TUI to get monitor config + project selection
+	// Run the AllModel TUI to get window counts per monitor
 	allModel := tui.NewAll(cfg)
 	p := tea.NewProgram(allModel, tea.WithAltScreen())
 	finalModel, err := p.Run()
@@ -50,19 +48,11 @@ func runAll(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unexpected model type")
 	}
 
-	if result.Cancelled() || result.SelectedProject() == "" {
+	if result.Cancelled() || !result.Confirmed() {
 		return nil
 	}
 
-	selectedProject := result.SelectedProject()
 	windowCounts := result.WindowCounts()
-
-	// Validate project directory exists
-	projectDir := filepath.Join(cfg.ProjectsRoot, selectedProject)
-	info, statErr := os.Stat(projectDir)
-	if statErr != nil || !info.IsDir() {
-		return fmt.Errorf("project %q not found in %s", selectedProject, cfg.ProjectsRoot)
-	}
 
 	// Detect monitors for positioning
 	monitors, err := monitor.Detect()
@@ -70,7 +60,7 @@ func runAll(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to detect monitors: %w", err)
 	}
 
-	// Build LaunchConfigs for all windows across all monitors
+	// Build LaunchConfigs — each window runs plain `qs` with its own picker
 	var configs []launcher.LaunchConfig
 	for monIdx, mon := range monitors {
 		count := 1
@@ -81,7 +71,7 @@ func runAll(cmd *cobra.Command, args []string) error {
 			count = 1
 		}
 
-		layout := layoutForCount(count)
+		layout := tui.LayoutForCount(count)
 		positions := launcher.CalculateLayout(&mon, count, layout)
 
 		for winIdx, pos := range positions {
@@ -93,7 +83,6 @@ func runAll(cmd *cobra.Command, args []string) error {
 				Width:      pos.Width,
 				Height:     pos.Height,
 				Command:    "qs",
-				Args:       []string{"--project", selectedProject},
 			})
 		}
 	}
@@ -102,24 +91,8 @@ func runAll(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("no windows to launch")
 	}
 
-	// Launch: position current window as configs[0], spawn configs[1:] as new terminals
-	launcher.LaunchAllWithCurrent(configs)
+	// Launch all windows as new terminals with their own pickers
+	launcher.LaunchAll(configs)
 
-	// Run picker in the current terminal with the project pre-selected
-	picker := tui.NewPickerWithProject(cfg, selectedProject)
-	pickerProgram := tea.NewProgram(picker, tea.WithAltScreen())
-	_, err = pickerProgram.Run()
-	return err
-}
-
-// layoutForCount maps window count to layout name (mirrors tui.layoutForCount)
-func layoutForCount(count int) string {
-	switch {
-	case count <= 1:
-		return "full"
-	case count == 2:
-		return "vertical"
-	default:
-		return "grid"
-	}
+	return nil
 }
