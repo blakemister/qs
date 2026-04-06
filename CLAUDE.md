@@ -130,7 +130,7 @@ Users can add custom accounts through `qs setup` or `qs accounts`.
 
 When helping a user get `qs` set up on their machine:
 
-1. **Check Go is installed**: `go version` (needs 1.21+)
+1. **Check Go is installed**: `go version` (needs 1.24+)
 2. **Check Windows Terminal is available**: `where wt` (should be on PATH)
 3. **Build and install**: run `.\install.ps1` from the repo root in PowerShell — this builds, copies to `~/.qs/bin/`, and adds to PATH
 4. **First run**: `qs` will prompt the user to set their projects directory. The user can either:

@@ -82,9 +82,8 @@ After picking a project, choose which AI coding tool to launch. If only one tool
 | OpenAI Codex | `codex --dangerously-bypass-approvals-and-sandbox` | Enabled |
 | Gemini CLI | `gemini --yolo` | Enabled |
 | OpenCode (z.ai) | `opencode` | Enabled |
+| AMA Claude | `claude --dangerously-skip-permissions` | Enabled |
 | Cursor Agent | `agent` | Enabled |
-| Aider | `aider --yes-always` | Disabled |
-| Continue Dev | `continue` | Disabled |
 
 Add custom tools through the setup wizard or `qs accounts`.
 

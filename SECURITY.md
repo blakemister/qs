@@ -2,9 +2,9 @@
 
 ## Reporting Vulnerabilities
 
-If you discover a security vulnerability, please open a GitHub issue with the `security` label, or contact the maintainer via their GitHub profile.
+If you discover a security vulnerability, please use [GitHub's private vulnerability reporting](https://github.com/bcmister/qs/security/advisories/new) to report it confidentially.
 
-For sensitive issues, please reach out privately before opening a public issue.
+Alternatively, open a GitHub issue with the `security` label for non-sensitive disclosures.
 
 ## Supported Versions
 
