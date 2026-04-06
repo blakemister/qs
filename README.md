@@ -1,5 +1,10 @@
 # qs
 
+[![CI](https://github.com/bcmister/qs/actions/workflows/ci.yml/badge.svg)](https://github.com/bcmister/qs/actions/workflows/ci.yml)
+[![Release](https://github.com/bcmister/qs/actions/workflows/release.yml/badge.svg)](https://github.com/bcmister/qs/actions/workflows/release.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/bcmister/qs)](https://goreportcard.com/report/github.com/bcmister/qs)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 **Quickly open any project with your AI coding tool of choice.**
 
 ```
@@ -25,10 +30,10 @@ It also creates new project folders inline - select "+ create new folder" from t
 
 ## Install
 
-Requires **Go 1.21+** and **Windows Terminal**.
+Requires **Go 1.24+** and **Windows Terminal**.
 
 ```powershell
-git clone https://github.com/blakemister/qs.git
+git clone https://github.com/bcmister/qs.git
 cd qs
 .\install.ps1
 ```
@@ -152,7 +157,7 @@ The setup wizard (`qs setup`) walks through all of this interactively:
 
 - **Windows 10/11**
 - **Windows Terminal** (default on Windows 11, or install from Microsoft Store)
-- **Go 1.21+** (to build from source)
+- **Go 1.24+** (to build from source)
 - At least one AI coding tool installed (`claude`, `codex`, `gemini`, etc.)
 
 ---
@@ -163,6 +168,25 @@ The setup wizard (`qs setup`) walks through all of this interactively:
 - [Lip Gloss](https://github.com/charmbracelet/lipgloss) - Terminal styling
 - [Cobra](https://github.com/spf13/cobra) - CLI framework
 - Win32 API - Monitor detection + window positioning
+
+---
+
+## Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| `qs` not found after install | Restart your terminal for PATH changes to take effect |
+| No projects shown | Check `projectsRoot` in `~/.qs/config.yaml` points to the right directory |
+| Tool fails to launch | Verify the tool's CLI is installed: `where claude`, `where codex`, etc. |
+| Config won't load | Delete `~/.qs/config.yaml` and run `qs setup` to reconfigure |
+
+---
+
+## Contributing
+
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
+
+Please read our [Code of Conduct](CODE_OF_CONDUCT.md) before participating.
 
 ---
 
